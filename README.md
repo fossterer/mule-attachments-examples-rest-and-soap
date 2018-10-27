@@ -2,7 +2,7 @@ Template Flows to handle attachments in Mule
 ---------------------------------------------
 
 
-This single Mavenized Mule application contains sample flows that you can extend to handle attachments (read as well as write) in your request processing.
+This single Mavenized Mule application contains sample flows that you can extend to handle attachments ('read' as well as 'write') in your request processing.
 
 Contents
 --------
