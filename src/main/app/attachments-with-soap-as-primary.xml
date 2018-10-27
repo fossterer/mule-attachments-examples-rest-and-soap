@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf"
+	xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/current/mule-cxf.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration-soap" host="localhost" port="8082" doc:name="HTTP Listener Configuration"/>
+    <file:connector name="File-soap" readFromDirectory="/home/shashank/Downloads" autoDelete="false" streaming="false" validateConnections="true" doc:name="File"/>
+    <spring:beans>
+        <spring:bean id="Bean" name="Bean" class="com.fossterer.Attachment"/>
+    </spring:beans>
+    <flow name="read-base64-from-soap-payload-to-send-as-attachment">
+        <http:listener config-ref="HTTP_Listener_Configuration-soap" path="/" doc:name="Listen to Postman requests"/>
+        <logger level="INFO" doc:name="Logger"/>
+        <dw:transform-message doc:name="Extract required elements" metadata:id="bcc5d48b-71c9-45af-9b4e-31c303a758a4">
+            <dw:input-payload doc:sample="examples/check-cc/request.xml" mimeType="application/xml"/>
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+payload.Envelope.Body.CheckCC.CardNumber]]></dw:set-payload>
+        </dw:transform-message>
+        <base64-decoder-transformer doc:name="Decode Base64 payload" doc:description=" Expecting incoming payload as plain text but Base64"/>
+        <set-attachment attachmentName="result1" value="#[payload]" contentType="application/pdf" doc:name="Set payload as attachment"/>
+        <set-payload value="#[null]" doc:name="Nullify Payload" doc:description="When this nullification is avoided, in response in Postman,  you see Content-Type &#8594;text/plain; charset=UTF-8   When this is present you see multipart/form-data; boundary=blah blah.  You may try manually setting the said header (without concern for boundary) to achieve similar result without this nullification"/>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="read-soap-attachment-from-payload-to-send-as-payload">
+        <http:listener config-ref="HTTP_Listener_Configuration-soap" path="/soapui" doc:name="LIsten to SOAPUI requests"/>
+        <logger level="INFO" doc:name="Logger"/>
+        <expression-transformer expression="#[message.inboundAttachments['1pdf.pdf'].dataSource.content]" doc:name="Extract attachment content" mimeType="application/pdf"/>
+        <base64-encoder-transformer doc:name="Encode payload to Base64" doc:description="Transform outgoing payload to Base64"/>
+        
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="read-soap-attachment-from-payload-to-send-as-soap-attachment" doc:description="When you trigger this from SOAPUI, though the response speaks 'null', observe that the Content-Length is huge. RIght-Click &gt; 'Save As' and decode as base64
+
+For best results, set Content-Type=multipart/form-data; boundary=zxcvbnm at the end
+In fact, the nulls SOAPUI showed were due to not setting 'boundary'.
+
+So SOAPUI request/response window is just incapable of showing attachment content. Probably there are configuration options to enable that.
+Concluding that SOAP Attachment sending has been tested successfully">
+        <http:listener config-ref="HTTP_Listener_Configuration-soap" path="/soapui-for-attachment" doc:name="LIsten to SOAPUI requests"/>
+        <logger level="INFO" doc:name="Logger"/>
+        <expression-transformer mimeType="text/plain" expression="#[message.inboundAttachments['1pdf.pdf'].dataSource.content]" doc:name="Extract attachment content"/>
+        <base64-encoder-transformer doc:name="Encode payload to Base64" doc:description="Transform outgoing payload to Base64"></base64-encoder-transformer>
+
+<component doc:name="Java">
+            <spring-object bean="Bean"/>
+</component>
+        <set-property propertyName="Content-Type" value="multipart/form-data; boundary=zxcvbnm" doc:name="Property"/>        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+    
+    <flow name="Pick-file-from-disk-to-send-as-soap-attachment">
+        <file:inbound-endpoint path="/home/shashank/Downloads" connector-ref="File-soap" pollingFrequency="1000000" responseTimeout="10000" doc:name="Pick File" doc:description="Read a specific pdf file but don't delete">
+            <file:filename-regex-filter pattern="pdf.pdf" caseSensitive="true"/>
+        </file:inbound-endpoint>
+        <logger level="INFO" doc:name="Logger"/>
+        <set-attachment attachmentName="result1" value="#[payload]" contentType="application/pdf" doc:name="Set payload as attachment"/>
+        <set-payload value="#[null]" doc:name="Nullify Payload" doc:description="When this nullification is avoided, in response in Postman,  you see Content-Type &#8594;text/plain; charset=UTF-8   When this is present you see multipart/form-data; boundary=blah blah.  You may try manually setting the said header (without concern for boundary) to achieve similar result without this nullification"/>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+</mule>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="localhost" port="8081" doc:name="HTTP Listener Configuration"/>
+    <file:connector name="File" readFromDirectory="/home/shashank/Downloads" autoDelete="false" streaming="false" validateConnections="true" doc:name="File"/>
+    <flow name="read-base64-from-payload-to-send-as-rest-attachment">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/" doc:name="HTTP"/>
+        <base64-decoder-transformer doc:name="Decode Base64 payload" doc:description=" Expecting incoming payload as plain text but Base64"/>
+        <set-attachment attachmentName="result1" value="#[payload]" contentType="application/pdf" doc:name="Set payload as attachment"/>
+        <set-payload value="#[null]" doc:name="Nullify Payload" doc:description="When this nullification is avoided, in response in Postman,  you see
+Content-Type &#8594;text/plain; charset=UTF-8
+
+ When this is present you see multipart/form-data; boundary=blah blah.
+
+You may try manually setting the said header (without concern for boundary) to achieve similar result without this nullification"/>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+    <flow name="Pick-file-from-disk-to-send-as-rest-attachment">
+        <file:inbound-endpoint path="/home/shashank/Downloads" connector-ref="File"  responseTimeout="10000" doc:name="Pick File" doc:description="Read a specific pdf file but don't delete">
+            <file:filename-regex-filter pattern="pdf.pdf" caseSensitive="true"/>
+        </file:inbound-endpoint>
+        <logger level="INFO" doc:name="Logger"/>
+        <set-attachment attachmentName="result1" value="#[payload]" contentType="application/pdf" doc:name="Set payload as attachment"/>
+        <set-payload value="#[null]" doc:name="Nullify Payload" doc:description="When this nullification is avoided, in response in Postman,  you see Content-Type &#8594;text/plain; charset=UTF-8   When this is present you see multipart/form-data; boundary=blah blah.  You may try manually setting the said header (without concern for boundary) to achieve similar result without this nullification"/>
+        <logger level="INFO" doc:name="Logger"/>
+    </flow>
+</mule>
